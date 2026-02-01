@@ -1,38 +1,68 @@
 import chromadb
 import logging
+import os
 import time
-import random
+from datetime import datetime
 
-def generate_time_based_id():
-    current_time = time.localtime()
-    formatted_time = time.strftime("Date: %Y-%m-%d  Time: %H:%M:%S", current_time)
-    return formatted_time
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('database')
 
-def chromadb_setup(vector, summary,video_address):
+class VectorDB:
+    def __init__(self, collection_name='VIDEO_SEARCH'):
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.chroma_path = os.path.join(self.base_dir, "chroma_db")
+        
+        # Initialize client
+        self.client = chromadb.PersistentClient(path=self.chroma_path)
+        self.collection = self.client.get_or_create_collection(name=collection_name)
+        logger.info(f"Connected to ChromaDB collection: {collection_name}")
 
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(module)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    dbpipeline = logging.getLogger('database_pipeline')
-    dbpipeline.info('Setting up ChromaDB...')
-    client = chromadb.PersistentClient(path='SET_YOUR_PATH')
-    dbpipeline.info('ChromaDB client created.')
-    dbpipeline.info('Creating or getting collection...')
-    collection = client.get_or_create_collection(name='VIDEOs')
-    dbpipeline.info('Collection created or retrieved.')
+    def insert_video(self, video_path, summary_text, vector_embedding):
+        """Inserts a single video record into the database."""
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            video_name = os.path.basename(video_path)
+            
+            # Metadata dictionary
+            meta = {
+                'upload_time': timestamp,
+                'path': video_path,
+                'filename': video_name,
+                'summary_snippet': summary_text[:100] + "..." # Store preview
+            }
 
-    if not vector:
-        dbpipeline.warning('No vectors provided. Exiting setup.')
-        return
-    
-    dbpipeline.info('Inserting data into ChromaDB...')
-    
-    for i in range(len(vector)):
-        collection.add(
-            ids=[video_address[i]],
-            embeddings=[vector[i]],
-            documents=[summary[i]],
-            metadatas=[{'upload_time': generate_time_based_id() }]  # Example metadata
+            self.collection.add(
+                ids=[video_path],  # Using path as unique ID
+                embeddings=[vector_embedding],
+                documents=[summary_text],
+                metadatas=[meta]
+            )
+            logger.info(f"Successfully inserted: {video_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to insert {video_path}: {e}")
+            return False
+
+    def search(self, query_embedding, n_results=3):
+        """Queries the database for similar videos."""
+        if self.collection.count() == 0:
+            return None
+            
+        results = self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=n_results
         )
+        return results
 
-    dbpipeline.info('Data insertion complete.Total samples inserted: %s', len(vector))
-    dbpipeline.info('ChromaDB setup complete.')
-    return  
+    def get_all_files(self):
+        """Retrieves metadata for all indexed files."""
+        if self.collection.count() == 0:
+            return []
+        
+        # ChromaDB .get() without args returns limited data, we just want metadata usually
+        data = self.collection.get()
+        return data.get('metadatas', [])
+
+    def count(self):
+        return self.collection.count()
