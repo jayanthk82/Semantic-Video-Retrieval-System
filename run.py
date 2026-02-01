@@ -1,126 +1,168 @@
-import time 
-import os 
-from preprocessing import upload_your_dataset
-from transformers import BlipProcessor, BlipForQuestionAnswering #type: ignore
-from sentence_transformers import SentenceTransformer #type: ignore
-import logging
-import chromadb  #type: ignore
-import streamlit as st  #type: ignore
+import streamlit as st
+import os
+import time
+import shutil
+from database import VectorDB
+from preprocessing import VideoProcessor
 
+# --- Page Config ---
+st.set_page_config(
+    page_title="Semantic Video Retrieval",
+    page_icon="🎥",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-def init_worker_VQA():
-    global video_captioning_processor
-    global video_captioning_model
-    video_captioning_processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base", use_fast=True)
-    video_captioning_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
+# --- Caching Resources (Run once) ---
+@st.cache_resource
+def get_db():
+    return VectorDB()
 
-def init_worker_text_vectorization():
-    global text_vectorization_model
-    text_vectorization_model = SentenceTransformer("all-MiniLM-L6-v2")
+@st.cache_resource
+def get_processor():
+    return VideoProcessor()
 
-def folder_walkthrough(root_folder):
-    data_paths = []
-    for dirpath, _, filenames in os.walk(root_folder):
-        for fname in filenames:
-            data_paths.append(os.path.join(dirpath, fname))
-    return data_paths
+# Initialize resources
+db = get_db()
+processor = get_processor()
 
-
-# ------------------- QUERY FUNCTION -------------------
-def QUERY(Query):
-  global text_vectorization_model
-  ChromaDB_Query_Embeddings = text_vectorization_model.encode(Query, convert_to_numpy=True)
-  ChromaDB_Query_result = chromadb_collection.query(query_embeddings = ChromaDB_Query_Embeddings,
-                 n_results=1)
-  st.write(f"using chromaDB: Your query is related to the document is at :{ChromaDB_Query_result['ids'][0][0]}" )
-
-# ------------------- Safe Main Runner -------------------
-
-if __name__ == '__main__':
+# --- Utility Functions ---
+def save_uploaded_file(uploaded_file):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    storage_dir = os.path.join(base_dir, "storage")
+    os.makedirs(storage_dir, exist_ok=True)
     
-    st.title('WELCOME TO VIDEO-RETRIVEAL SYSTEM PROTOTYPE')
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
-    client = chromadb.PersistentClient(path=CHROMA_PATH)
-    chromadb_collection = client.get_or_create_collection(name = 'VIDEOs')
+    file_path = os.path.join(storage_dir, uploaded_file.name)
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    return file_path
 
-    streamlit_col1,streamlit_col2 = st.columns(2)
-
-    logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(levelname)s - %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
-    pipeline = logging.getLogger('pipeline')
-    pipeline.info('Starting the execution...')
-    tic = time.time()
-    pipeline.info('Initializing workers...')
-    init_worker_VQA()
-    init_worker_text_vectorization()
-    pipeline.info('Initialization complete.')
-    pipeline.info('Getting video addresses...') 
+# --- Sidebar ---
+with st.sidebar:
+    st.header("⚙️ Settings")
+    frame_interval = st.slider(
+        "Processing Speed (Frame Interval)", 
+        min_value=1, max_value=10, value=2, 
+        help="Higher values = Faster processing but less detail. (e.g., 2 means check one frame every 2 seconds)"
+    )
     
-    video_address = []
-
-    def save_uploaded_file(uploaded_files):
-           BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-           folder = os.path.join(BASE_DIR, "storage")
-           os.makedirs(folder, exist_ok=True)
-           file_path = os.path.join(folder, uploaded_files.name)
-           with open(file_path, "wb") as f:
-               f.write(uploaded_files.getbuffer())  # Efficient and clean
-           return file_path
-    if 'all_uploaded_files' not in st.session_state:
-        st.session_state.all_uploaded_files = set()
-    if 'new_uploaded_files' not in st.session_state:
-        st.session_state.new_uploaded_files = []
-
-    with streamlit_col1: 
-        uploaded_files = st.file_uploader('Upload your video files here:', type=['mp4'], accept_multiple_files=True)    
-
-        if uploaded_files:
-           
-           st.session_state.new_uploaded_files = [file for file in uploaded_files if file.name not in st.session_state.all_uploaded_files]
-           if not st.session_state.new_uploaded_files:
-                st.warning("No new files to upload to database.")
-
-           elif st.button('🚀 Upload & Process'): 
-              
-              for files in st.session_state.new_uploaded_files:
-                 video_address.append(save_uploaded_file(files))
-
-              pipeline.info('no of videos:%s', len(video_address))
-              pipeline.info('Video addresses retrieved.')
-              pipeline.info('Uploading dataset...')
-
-              upload_your_dataset(video_address)
-
-              pipeline.info('Dataset uploaded successfully.')
-              toc = time.time()
-              pipeline.info('Time taken to upload the dataset: %s seconds', toc - tic)
-              pipeline.info('DATASET_UPLOADED...')
-              for files in st.session_state.new_uploaded_files:
-                 st.session_state.all_uploaded_files.add(files.name)
-              st.success(f"Processed new files!")
+    st.divider()
     
-    #video_address = folder_walkthrough(dataset_path)
-    def QUERY(Query,chromadb_collection):
-       global text_vectorization_model
-       ChromaDB_Query_Embeddings = text_vectorization_model.encode(Query, convert_to_numpy=True)
-       ChromaDB_Query_result = chromadb_collection.query(query_embeddings = ChromaDB_Query_Embeddings,
-                 n_results=1)
-       st.write(f"using chromaDB: Your query is related to the document is at :{ChromaDB_Query_result['ids'][0][0]}" )
-       st.success('Query submitted successfully.')
+    st.subheader("ℹ️ Guide for Testing")
+    with st.expander("How to use this app"):
+        st.markdown("""
+        1. **Go to 'Upload & Index'**.
+        2. Drag & drop a short video (MP4).
+        3. Click **Process Videos**.
+        4. Wait for the AI to analyze the frames.
+        5. **Go to 'Search'**.
+        6. Type a query like *"a person running"* or *"red car"*.
+        7. See matches!
+        """)
     
+    st.info(f"Database contains **{db.count()}** videos.")
 
-    with streamlit_col2:
-        
-        if chromadb_collection.count():
-            if "query" not in st.session_state:
-                st.session_state.query = ""
-            Query = st.text_input('Enter your query: ')
-            if Query:
-               if st.button('Submit'):
-                  QUERY(Query,chromadb_collection)
-                  pipeline.info('Exiting the program.')  
+# --- Main Interface ---
+st.title("🎥 Semantic Video Retrieval System")
+st.markdown("Search inside your videos using natural language.")
+
+tab1, tab2, tab3 = st.tabs(["🔍 Search", "📤 Upload & Index", "📂 Library"])
+
+# --- TAB 1: SEARCH ---
+with tab1:
+    st.markdown("### Find a Video")
+    query = st.text_input("Describe what you are looking for...", placeholder="e.g., 'A dog playing in the park' or 'Chef cooking pasta'")
+    
+    if st.button("Search", type="primary"):
+        if not query:
+            st.warning("Please enter a query.")
+        elif db.count() == 0:
+            st.error("Database is empty! Please upload videos first.")
         else:
-            st.write("Insufficient data! Upload your data for querying")
+            with st.spinner("Searching vector database..."):
+                # Embed query
+                query_vector = processor._generate_embedding(query)
+                results = db.search(query_vector, n_results=3)
             
-            
+            if results and results['ids']:
+                st.success(f"Found {len(results['ids'][0])} relevant matches.")
+                
+                # Display Results
+                for i, video_path in enumerate(results['ids'][0]):
+                    score = results['distances'][0][i]
+                    metadata = results['metadatas'][0][i]
+                    summary = results['documents'][0][i]
+                    
+                    # Create a card for the result
+                    with st.container():
+                        st.markdown(f"#### Rank {i+1}")
+                        col_vid, col_info = st.columns([1, 2])
+                        
+                        with col_vid:
+                            if os.path.exists(video_path):
+                                st.video(video_path)
+                            else:
+                                st.error(f"Video file missing: {video_path}")
+                                
+                        with col_info:
+                            st.caption(f"Filename: {metadata.get('filename', 'Unknown')}")
+                            st.caption(f"Relevance Distance: {score:.4f} (Lower is better)")
+                            with st.expander("See AI Summary"):
+                                st.write(summary)
+                        st.divider()
+            else:
+                st.info("No matching videos found.")
 
+# --- TAB 2: UPLOAD ---
+with tab2:
+    st.markdown("### Add Videos to Database")
+    uploaded_files = st.file_uploader("Upload MP4 files", type=['mp4'], accept_multiple_files=True)
+    
+    if uploaded_files and st.button("🚀 Upload & Process"):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for idx, file in enumerate(uploaded_files):
+            status_text.write(f"Processing **{file.name}**... (This may take a moment)")
+            
+            # 1. Save File
+            saved_path = save_uploaded_file(file)
+            
+            # 2. Process Video (Summary + Embedding)
+            try:
+                summary, vector = processor.process_video(
+                    saved_path, 
+                    frame_interval=frame_interval,
+                    progress_callback=lambda x: progress_bar.progress(x)
+                )
+                
+                # 3. Insert into DB
+                success = db.insert_video(saved_path, summary, vector)
+                
+                if success:
+                    st.toast(f"✅ Indexed: {file.name}")
+                else:
+                    st.error(f"Failed to index {file.name}")
+                    
+            except Exception as e:
+                st.error(f"Error processing {file.name}: {e}")
+        
+        status_text.write("✅ **All processing complete!**")
+        progress_bar.progress(100)
+        time.sleep(2)
+        st.rerun()
+
+# --- TAB 3: LIBRARY ---
+with tab3:
+    st.markdown("### Indexed Videos")
+    files = db.get_all_files()
+    
+    if not files:
+        st.info("Library is empty.")
+    else:
+        # Display as a table or grid
+        for meta in files:
+            with st.expander(f"📁 {meta.get('filename', 'Unknown')}"):
+                st.json(meta)
+                if st.button(f"Play {meta.get('filename')}", key=meta.get('path')):
+                    st.video(meta.get('path'))

@@ -1,17 +1,18 @@
-# 🎥 SEMANTIC VIDEO RETRIEVAL SYSTEM
+# 🎥 Semantic Video Retrieval System (Improved)
 
-A **production-ready, multimodal video retrieval system** that matches videos to **natural language queries** using powerful vision-language models and LLMs. This system enables **semantic video search** by leveraging frame-level visual summaries and enriched audio transcripts, all indexed in a vector database for blazing-fast similarity search.
+A **production-ready, multimodal video retrieval system** that matches videos to **natural language queries** using powerful vision-language models (BLIP) and Vector Databases (ChromaDB).
+
+This version includes a clean UI, speed optimizations, and robust error handling.
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-- 🔍 **Natural Language Video Search**: Find relevant videos using everyday language.
-- 🧠 **Multimodal Understanding**: Combines visual and audio information for richer context.
-- 🖼️ **Visual Summarization**: Extracts key frames (1 FPS) and generates meaningful summaries using a vision-language model.
-- 🎙️ **Audio Transcript Enrichment**: Converts speech to text and integrates it with visual data.
-- ⚡ **Fast Retrieval**: Stores embeddings and metadata in a vector database for efficient semantic search.
-- 🧪 **Scalable & Production-Ready**: Clean architecture ready for deployment and scaling.
+- **Natural Language Search**: "Find the clip where a dog is running on grass."
+- **Optimized Performance**: Adjustable frame sampling (doesn't process every single frame, making it 5-10x faster).
+- **Video Summary Generation**: Automatically captions video content.
+- **Clean UI**: Tabbed interface for Search, Upload, and Library management.
+- **Caching**: Models load once, preventing slow reloads.
 
 ---
 
@@ -19,15 +20,25 @@ A **production-ready, multimodal video retrieval system** that matches videos to
 
 | Component | Technology |
 |----------|-------------|
-| Language | Python |
-| Visualsummary Model | BLIP |
-| Vector DB |Chroma |
-| Audio Processing | ffmpeg, pydub |
-| Frame Extraction | OpenCV |
-| Deployment | Streamlit |
+| **Language** | Python |
+| **Vision Model** | BLIP (Salesforce) |
+| **Vector DB** | ChromaDB |
+| **Audio Processing** | ffmpeg, pydub |
+| **Frame Extraction** | OpenCV |
+| **UI / Deployment** | Streamlit |
 
 ---
 
-## 🚀 Getting Started
+## 🛠️ Installation
 
-RUN run.py using |streamlit run| command in CLI using seperate environmet to get streamlit UI as local webhost. 
+1. **Clone the repository** (or download the files).
+
+2. **Create a virtual environment** (recommended):
+   ```bash
+   python -m venv venv
+   
+   # Windows
+   venv\Scripts\activate
+   
+   # Mac/Linux
+   source venv/bin/activate
