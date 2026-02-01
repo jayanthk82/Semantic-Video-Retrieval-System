@@ -42,3 +42,11 @@ This version includes a clean UI, speed optimizations, and robust error handling
    
    # Mac/Linux
    source venv/bin/activate
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+
+   #start the demo
+
+   streamlit run run.py
+   
