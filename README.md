@@ -1,4 +1,4 @@
-# 🎥 Semantic Video Retrieval System (Improved)
+# 🎥 Semantic Video Retrieval System 
 
 [![Streamlit App](https://img.shields.io/badge/Streamlit-Live%20Demo-FF4B4B?style=flat&logo=streamlit&logoColor=white)](https://semantic-video-retrieval-system.streamlit.app/)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/jayanthk82/ats)
